@@ -1,7 +1,7 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 import time, datetime
-import json, os
+import json, os, sys
 from collections import defaultdict
 from tqdm import tqdm
 import logging
@@ -49,7 +49,7 @@ class ScrapeLinkedInJobOffers:
         pages.close()
         job_lists = self.wd.find_element(By.CLASS_NAME, 'jobs-search__results-list')
         jobs = job_lists.find_elements(By.TAG_NAME, 'li') # return a list
-
+        self.logging.info(f"Saving {len(jobs)} for {self.location}.")
         return jobs
 
     def read_and_save_jobs(self, jobs):
@@ -76,18 +76,21 @@ class ScrapeLinkedInJobOffers:
         raise(NotImplementedError)
 
     def read_json(self, path):
-        with open(path, "r") as jsonFile:
-            data = json.load(jsonFile)
-        return data
+        try:
+            with open(path, "r") as jsonFile:
+                data = json.load(jsonFile)
+            return data
+        except FileNotFoundError:
+            return {}
+        
 
     def write_json_file(self, path, data):
         with open(path, 'w') as f:
-            json.dump(self.job_info, f)
+            json.dump(data, f)
 
     def update_json(self, path):
         data = self.read_json(path)
-        data[self.location] = self.job_info[location]
-        print(data)
+        data[self.location] = self.job_info[self.location]
         self.write_json_file(path, data)
 
     def run(self):
@@ -101,18 +104,22 @@ if __name__ == '__main__':
     os.makedirs('./data', exist_ok=True)
 
     logging.basicConfig(
-        filename=f'linkedIn_scrape_{str(datetime.datetime.now())}.log', 
-        filemode='w', 
+        level=logging.INFO,
         format='%(name)s - %(levelname)s - %(message)s',
-        level=logging.INFO
+        handlers=[
+            logging.FileHandler(f'linkedIn_scrape_{str(datetime.datetime.now())}.log'),
+            logging.StreamHandler(sys.stdout)
+        ]
     )
+
+    start = time.perf_counter()
 
     for location in country_list:
         scraper = ScrapeLinkedInJobOffers(logger=logging, location=location)
         scraper.run()
+    
+    elapsed_seconds = time.perf_counter() - start
+    logging.info(f"For {len(country_list)} countries, scraping time is {elapsed_seconds/60} minutes.")
 
 
-#TODO:  each run time we get different results (e.g. Bulgaria sometimes have or doesn't have results), 
-#       and the total saved jobs is less that the complete jobswe get from the website. Should check on that.
-
-# TODO: update json function, doesn't work. 
+#TODO: We get the first 175 fom scrolling, then we need to press a button and look into another source for each next 25.
