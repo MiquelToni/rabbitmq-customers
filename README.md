@@ -22,3 +22,12 @@ docker run -d --name rabbitmq_customers \
 
 - Restart db with `docker restart rabbitmq_customers`
 - (Optional): Consider using [Compass](https://formulae.brew.sh/cask/mongodb-compass) to check on the database.
+
+## Known Issues
+
+### Indeed scrapper
+
+- Empty result page not handled properly
+- Some attributes are None or not found in some offers
+- Improve: Look for a render-less / silent version of the scrapper
+- Add proper logger

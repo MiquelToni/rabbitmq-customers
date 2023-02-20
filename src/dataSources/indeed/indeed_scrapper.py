@@ -1,4 +1,5 @@
 
+from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 import json
@@ -67,25 +68,42 @@ class IndeedScrapper:
             'return window.mosaic.providerData["mosaic-provider-jobcards"]')
 
         offers = data['metaData']['mosaicProviderJobCardsModel']['results']
-        print("found", len(offers), "new offers")
-        for offer in offers:
-            details = self.get_offer_details(base_url, offer)
-            offer['get_offer_details'] = details
-            self.repo.insert_job_offer(offer)
+        if offers is not None:
+            print("found", len(offers), "new offers")
+            for offer in offers:
+                details = self.get_offer_details(base_url, offer)
+                self.repo.insert_job_offer(details)
+        else:
+            print("No offers found")
 
     def get_offer_details(self, baseurl, offer: dict) -> dict:
         driver = self.driver
-        view_job_link = baseurl + offer['viewJobLink'] + '&spa=1'
+        view_job_link = baseurl + offer['viewJobLink']
         driver.get(view_job_link)
-        pageDataSerializedJson = driver.find_element(
-            By.XPATH, '/html/body/pre').get_attribute('innerText')
+
+        try:
+            initial_data = driver.execute_script('window._initialData')
+            job_location = initial_data['jobLocation']
+        except:
+            job_location = ""
+
+        offer_details = {
+            'job_title': str(driver.find_element(By.CSS_SELECTOR, '[role="text"]').get_attribute('innerText')),
+            'job_description': str(driver.find_element(By.CLASS_NAME, 'jobsearch-jobDescriptionText').get_attribute('innerHTML')),
+            'company_name': str(driver.find_element(By.CSS_SELECTOR, '[data-company-name="true"]').find_element(By.CSS_SELECTOR, '*').get_attribute('innerText')),
+            'job_location': str(job_location),
+            'date_posted': str(driver.find_element(By.CSS_SELECTOR, 'li.css-5vsc1i > span.css-kyg8or').get_attribute('innerText')),
+            'job_link': str(view_job_link),
+            'saved_timestamp': str(datetime.today().isoformat(sep='T', timespec='auto')),
+        }
 
         driver.back()
-
-        return json.loads(pageDataSerializedJson)
+        return offer_details
 
     def goto_next_page(self) -> bool:
         # Returns "can keep going signal" -> True when "next_page_btn" is found
+        print("break before next page")
+        time.sleep(2)
         try:
             next_page_btn = self.driver.find_element(
                 By.CSS_SELECTOR, '[data-testid="pagination-page-next"]')
