@@ -2,7 +2,9 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 import time
-import json
+import urllib.parse
+
+from repository.IndeedRepo import IndeedRepo
 
 # https://gist.github.com/jonbruner/64fd4774396448a0a96ee2ac396bff20
 ISO_COUNTRY_CODES = ["AF", "AX", "AL", "DZ", "AS", "AD", "AO", "AI", "AQ", "AG", "AR",
@@ -30,77 +32,61 @@ ISO_COUNTRY_CODES = ["AF", "AX", "AL", "DZ", "AS", "AD", "AO", "AI", "AQ", "AG",
                      "VG", "VI", "WF", "EH", "YE", "ZM", "ZW"]
 
 
-def save_found_offers(found_offers):
-    # Serializing json
-    json_object = json.dumps(found_offers, indent=4)
+class IndeedScrapper:
+    def __init__(self, repo: IndeedRepo):
+        self.repo = repo
+        self.driver = webdriver.Chrome()
 
-    # Writing to sample.json
-    with open("indeed_offers.json", "w") as outfile:
-        outfile.write(json_object)
+    def crawl_page(self, keyword: str):
+        driver = self.driver
 
-
-# Returns "can keep going signal" -> True when "next_page_btn" is found
-def goto_next_page(driver: webdriver.Chrome):
-    try:
-        next_page_btn = driver.find_element(
-            By.CSS_SELECTOR, '[data-testid="pagination-page-next"]')
-        next_page_btn.click()
-        return True
-    except:
-        return False
-
-
-def maybe_close_popup(driver: webdriver.Chrome):
-    try:
-        close_modal_btn = driver.find_element(By.CLASS_NAME, 'icl-Modal-close')
-        close_modal_btn.click()
-    except:
-        print("no modal")
-
-
-def init_driver():
-    # options = webdriver.ChromeOptions()
-    # options.add_argument("--headless")
-    # driver = webdriver.Chrome(options=options)
-    driver = webdriver.Chrome()
-    return driver
-
-
-def get_job_offers_from_page(driver: webdriver.Chrome):
-    data = driver.execute_script(
-        'return window.mosaic.providerData["mosaic-provider-jobcards"]')
-
-    return data['metaData']['mosaicProviderJobCardsModel']['results']
-
-
-def crawl_page():
-    driver = init_driver()
-    offers = []
-
-    for code in ISO_COUNTRY_CODES:
-        url = f'https://{code}.indeed.com/jobs?q=rabbitmq'
-        try:
-            driver.get(url)
+        for code in ISO_COUNTRY_CODES:
+            base_url = f'https://{code}.indeed.com/jobs'
+            url = base_url + '?' + urllib.parse.urlencode({'q': keyword})
             try:
-                print("visiting", url)
-                time.sleep(1.5)
+                driver.get(url)
+                try:
+                    print("visiting", url)
+                    time.sleep(1.5)
 
-                get_job_offers_from_page(driver)
-                while goto_next_page(driver):
-                    time.sleep(1)
+                    self.get_job_offers_from_page()
+                    while self.goto_next_page():
+                        time.sleep(1)
 
-                    maybe_close_popup(driver)
-                    new_offers = get_job_offers_from_page(driver)
-                    print("found", len(new_offers), "new offers")
-                    offers = offers + new_offers
+                        self.maybe_close_popup()
+                        offers = self.get_job_offers_from_page()
+                        print("found", len(offers), "new offers")
+                        for offer in offers:
+                            self.repo.insert_job_offer(offer)
 
-                print("Finished visiting", url)
+                    print("Finished visiting", url)
+                except Exception as e:
+                    print(e)
             except Exception as e:
-                print(e)
-        except Exception as e:
-            print("Not Found", url)
+                print("Not Found", url)
 
-    save_found_offers(offers)
+    def get_job_offers_from_page(self):
+        data = self.driver.execute_script(
+            'return window.mosaic.providerData["mosaic-provider-jobcards"]')
 
+        # does not contain offer data...
+        return data['metaData']['mosaicProviderJobCardsModel']['results']
 
-crawl_page()
+    def goto_next_page(self):
+        # Returns "can keep going signal" -> True when "next_page_btn" is found
+        try:
+            next_page_btn = self.driver.find_element(
+                By.CSS_SELECTOR, '[data-testid="pagination-page-next"]')
+            next_page_btn.click()
+            return True
+        except:
+            return False
+
+    def maybe_close_popup(self):
+        # Attempts to close modal popup if shown
+        try:
+            close_modal_btn = self.driver.find_element(
+                By.CLASS_NAME, 'icl-Modal-close')
+            close_modal_btn.click()
+        except:
+            pass
