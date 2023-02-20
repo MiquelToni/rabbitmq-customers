@@ -1,6 +1,7 @@
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+import json
 import time
 import urllib.parse
 
@@ -33,31 +34,27 @@ ISO_COUNTRY_CODES = ["AF", "AX", "AL", "DZ", "AS", "AD", "AO", "AI", "AQ", "AG",
 
 
 class IndeedScrapper:
-    def __init__(self, repo: IndeedRepo):
+    def __init__(self, repo: IndeedRepo) -> None:
         self.repo = repo
         self.driver = webdriver.Chrome()
 
-    def crawl_page(self, keyword: str):
+    def crawl_page(self, keyword: str) -> None:
         driver = self.driver
 
         for code in ISO_COUNTRY_CODES:
-            base_url = f'https://{code}.indeed.com/jobs'
-            url = base_url + '?' + urllib.parse.urlencode({'q': keyword})
+            base_url = f'https://{code}.indeed.com'
+            url = base_url + '/jobs?' + urllib.parse.urlencode({'q': keyword})
             try:
                 driver.get(url)
                 try:
                     print("visiting", url)
                     time.sleep(1.5)
 
-                    self.get_job_offers_from_page()
+                    self.get_job_offers_from_page(base_url)
                     while self.goto_next_page():
                         time.sleep(1)
-
                         self.maybe_close_popup()
-                        offers = self.get_job_offers_from_page()
-                        print("found", len(offers), "new offers")
-                        for offer in offers:
-                            self.repo.insert_job_offer(offer)
+                        self.get_job_offers_from_page(base_url)
 
                     print("Finished visiting", url)
                 except Exception as e:
@@ -65,14 +62,29 @@ class IndeedScrapper:
             except Exception as e:
                 print("Not Found", url)
 
-    def get_job_offers_from_page(self):
+    def get_job_offers_from_page(self, base_url) -> None:
         data = self.driver.execute_script(
             'return window.mosaic.providerData["mosaic-provider-jobcards"]')
 
-        # does not contain offer data...
-        return data['metaData']['mosaicProviderJobCardsModel']['results']
+        offers = data['metaData']['mosaicProviderJobCardsModel']['results']
+        print("found", len(offers), "new offers")
+        for offer in offers:
+            details = self.get_offer_details(base_url, offer)
+            offer['get_offer_details'] = details
+            self.repo.insert_job_offer(offer)
 
-    def goto_next_page(self):
+    def get_offer_details(self, baseurl, offer: dict) -> dict:
+        driver = self.driver
+        view_job_link = baseurl + offer['viewJobLink'] + '&spa=1'
+        driver.get(view_job_link)
+        pageDataSerializedJson = driver.find_element(
+            By.XPATH, '/html/body/pre').get_attribute('innerText')
+
+        driver.back()
+
+        return json.loads(pageDataSerializedJson)
+
+    def goto_next_page(self) -> bool:
         # Returns "can keep going signal" -> True when "next_page_btn" is found
         try:
             next_page_btn = self.driver.find_element(
@@ -82,7 +94,7 @@ class IndeedScrapper:
         except:
             return False
 
-    def maybe_close_popup(self):
+    def maybe_close_popup(self) -> None:
         # Attempts to close modal popup if shown
         try:
             close_modal_btn = self.driver.find_element(
