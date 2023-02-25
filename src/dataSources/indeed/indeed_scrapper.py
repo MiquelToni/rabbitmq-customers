@@ -2,14 +2,13 @@
 from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-import json
 import time
 import urllib.parse
 
 from repository.IndeedRepo import IndeedRepo
 
 # https://gist.github.com/jonbruner/64fd4774396448a0a96ee2ac396bff20
-ISO_COUNTRY_CODES = ["AF", "AX", "AL", "DZ", "AS", "AD", "AO", "AI", "AQ", "AG", "AR",
+ISO_COUNTRY_CODES = ["AQ", "AG", "AR",
                      "AM", "AW", "AU", "AT", "AZ", "BS", "BH", "BD", "BB", "BY", "BE",
                      "BZ", "BJ", "BM", "BT", "BO", "BQ", "BA", "BW", "BV", "BR", "IO",
                      "BN", "BG", "BF", "BI", "CV", "KH", "CM", "CA", "KY", "CF", "TD",
@@ -21,7 +20,7 @@ ISO_COUNTRY_CODES = ["AF", "AX", "AL", "DZ", "AS", "AD", "AO", "AI", "AQ", "AG",
                      "HK", "HU", "IS", "IN", "ID", "IR", "IQ", "IE", "IM", "IL", "IT",
                      "JM", "JP", "JE", "JO", "KZ", "KE", "KI", "KP", "KR", "KW", "KG",
                      "LA", "LV", "LB", "LS", "LR", "LY", "LI", "LT", "LU", "MO", "MK",
-                     "MG", "MW", "MY", "MV", "ML", "MT", "MH", "MQ", "MR", "MU", "YT",
+                     "MG", "MW", "MV", "ML", "MT", "MH", "MQ", "MR", "MU", "YT",
                      "MX", "FM", "MD", "MC", "MN", "ME", "MS", "MA", "MZ", "MM", "NA",
                      "NR", "NP", "NL", "NC", "NZ", "NI", "NE", "NG", "NU", "NF", "MP",
                      "NO", "OM", "PK", "PW", "PS", "PA", "PG", "PY", "PE", "PH", "PN",
@@ -43,7 +42,7 @@ class IndeedScrapper:
         driver = self.driver
 
         for code in ISO_COUNTRY_CODES:
-            base_url = f'https://{code}.indeed.com'
+            base_url = f'https://{str(code).lower()}.indeed.com'
             url = base_url + '/jobs?' + urllib.parse.urlencode({'q': keyword})
             try:
                 driver.get(url)
@@ -51,49 +50,64 @@ class IndeedScrapper:
                     print("visiting", url)
                     time.sleep(1.5)
 
-                    self.get_job_offers_from_page(base_url)
-                    while self.goto_next_page():
-                        time.sleep(1)
-                        self.maybe_close_popup()
-                        self.get_job_offers_from_page(base_url)
+                    window_location_origin = driver.execute_script(
+                        'return window.location.origin')
+                    offers_found_count = 0
+                    if window_location_origin == base_url:
+                        offers_found_count += self.get_job_offers_from_page(
+                            base_url)
+                        while self.goto_next_page():
+                            time.sleep(1)
+                            self.maybe_close_popup()
+                            offers_found_count += self.get_job_offers_from_page(
+                                base_url)
 
-                    print("Finished visiting", url)
+                        print('Found', offers_found_count, 'offers at', url)
+                    else:
+                        print("Abort visit. Reason: redirected to",
+                              window_location_origin)
                 except Exception as e:
-                    print(e)
+                    print('Error crawl_page', e)
             except Exception as e:
                 print("Not Found", url)
 
     def get_job_offers_from_page(self, base_url) -> None:
         data = self.driver.execute_script(
-            'return window.mosaic.providerData["mosaic-provider-jobcards"]')
+            'return window.mosaic?.providerData ? window.mosaic.providerData["mosaic-provider-jobcards"] : null')
+        offers = data['metaData']['mosaicProviderJobCardsModel']['results'] if data is not None else None
+        if offers is None:
+            return 0
 
-        offers = data['metaData']['mosaicProviderJobCardsModel']['results']
-        if offers is not None:
-            print("found", len(offers), "new offers")
-            for offer in offers:
-                details = self.get_offer_details(base_url, offer)
-                self.repo.insert_job_offer(details)
-        else:
-            print("No offers found")
+        for offer in offers:
+            details = {}
+            # details = self.get_offer_details(base_url, offer) # uncomment when the description becomes relevant
+            details['company'] = offer['company'] if 'company' in offer else ''
+            details['job_location_city'] = offer['jobLocationCity'] if 'jobLocationCity' in offer else (
+                offer['formattedLocation'] if 'formattedLocation' in offer else '')
+            details['job_location_state'] = offer['jobLocationState'] if 'jobLocationState' in offer else ''
+            details['location_name'] = offer['locationName'] if 'locationName' in offer else ''
+            details['job_title'] = offer['title'] if 'title' in offer else ''
+            details['publication_date'] = offer['pubDate'] if 'pubDate' in offer else ''
+            details['view_job_link'] = offer['viewJobLink'] if 'viewJobLink' in offer else ''
+            self.repo.insert_job_offer(details)
+
+        return len(offers)
 
     def get_offer_details(self, baseurl, offer: dict) -> dict:
         driver = self.driver
         view_job_link = baseurl + offer['viewJobLink']
         driver.get(view_job_link)
 
-        try:
-            initial_data = driver.execute_script('window._initialData')
-            job_location = initial_data['jobLocation']
-        except:
-            job_location = ""
+        maybe_description = driver.find_elements(
+            By.CLASS_NAME, 'jobsearch-jobDescriptionText')
+        if len(maybe_description) > 0:
+            job_description = maybe_description[0].get_attribute('innerHTML')
+        else:
+            print('Error: empty job_description')
+            job_description = ''
 
         offer_details = {
-            'job_title': str(driver.find_element(By.CSS_SELECTOR, '[role="text"]').get_attribute('innerText')),
-            'job_description': str(driver.find_element(By.CLASS_NAME, 'jobsearch-jobDescriptionText').get_attribute('innerHTML')),
-            'company_name': str(driver.find_element(By.CSS_SELECTOR, '[data-company-name="true"]').find_element(By.CSS_SELECTOR, '*').get_attribute('innerText')),
-            'job_location': str(job_location),
-            'date_posted': str(driver.find_element(By.CSS_SELECTOR, 'li.css-5vsc1i > span.css-kyg8or').get_attribute('innerText')),
-            'job_link': str(view_job_link),
+            'job_description': job_description,
             'saved_timestamp': str(datetime.today().isoformat(sep='T', timespec='auto')),
         }
 
@@ -102,8 +116,6 @@ class IndeedScrapper:
 
     def goto_next_page(self) -> bool:
         # Returns "can keep going signal" -> True when "next_page_btn" is found
-        print("break before next page")
-        time.sleep(2)
         try:
             next_page_btn = self.driver.find_element(
                 By.CSS_SELECTOR, '[data-testid="pagination-page-next"]')
