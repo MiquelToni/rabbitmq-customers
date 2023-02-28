@@ -38,7 +38,7 @@ class IndeedScrapper:
         self.repo = repo
         self.driver = webdriver.Chrome()
 
-    def crawl_page(self, keyword: str) -> None:
+    def run(self, keyword: str) -> None:
         driver = self.driver
 
         for code in ISO_COUNTRY_CODES:
