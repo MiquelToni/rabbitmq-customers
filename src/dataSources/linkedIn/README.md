@@ -4,4 +4,4 @@ Steps for scraping the LinkedIn page (without login needed) for job descriptions
 
 1. Download a chrome driver from [here](https://chromedriver.chromium.org/downloads)
 
-2. Run ```python3 rabbitmq_linkedin_scraper.py```
+2. Run ```python3 -m dataSources.linkedin.rabbitmq_linkedin_scraper```

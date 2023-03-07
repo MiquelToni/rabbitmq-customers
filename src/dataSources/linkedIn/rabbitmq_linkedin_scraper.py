@@ -1,17 +1,14 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 import time, datetime
-import json, os, sys
+import json
 from collections import defaultdict
 from tqdm import tqdm
-import logging
-
-from countries import country_list
 
 
 class ScrapeLinkedInJobOffers:
 
-    def __init__(self, logger, location):
+    def __init__(self, logger, location, database):
         options = webdriver.ChromeOptions()
         options.add_argument("--headless")
         self.wd = webdriver.Chrome(executable_path='chromedriver/chromedriver.exe', chrome_options=options)
@@ -19,6 +16,7 @@ class ScrapeLinkedInJobOffers:
         self.logging = logger
         self.job_number = 0
         self.location = location
+        self.db = database
 
     def get_web_driver_for_location(self):
         url = f"https://www.linkedin.com/jobs/search?keywords=rabbitmq&location={self.location}&pageNum=0&position=1"
@@ -67,9 +65,13 @@ class ScrapeLinkedInJobOffers:
             url = job.find_element(By.CSS_SELECTOR, 'a').get_attribute('href')
             job_data['job_link'] = url
             job_data['saved_timestamp'] = str(datetime.datetime.now())
-            job_data['job_count'] = self.job_number
             # job_data['job_description'] = self.get_detailed_job_description(url)
 
+            # save to db
+            self.db.insert_job_offer(job_data)
+
+            job_data['job_count'] = self.job_number
+            del job_data['_id']
             self.job_info[self.location].append(job_data)
 
     def get_detailed_job_description(self, url):
@@ -97,29 +99,6 @@ class ScrapeLinkedInJobOffers:
         self.get_web_driver_for_location()
         jobs = self.read_page()
         self.read_and_save_jobs(jobs)
-        self.update_json('data/linkedin_job_offers_info.json')
-
-
-if __name__ == '__main__':
-    os.makedirs('./data', exist_ok=True)
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(f'linkedIn_scrape_{str(datetime.datetime.now())}.log'),
-            logging.StreamHandler(sys.stdout)
-        ]
-    )
-
-    start = time.perf_counter()
-
-    for location in country_list:
-        scraper = ScrapeLinkedInJobOffers(logger=logging, location=location)
-        scraper.run()
-    
-    elapsed_seconds = time.perf_counter() - start
-    logging.info(f"For {len(country_list)} countries, scraping time is {elapsed_seconds/60} minutes.")
-
+        self.update_json('./data/linkedIn/linkedin_job_offers_info.json')
 
 #TODO: We get the first 175 fom scrolling, then we need to press a button and look into another source for each next 25.
