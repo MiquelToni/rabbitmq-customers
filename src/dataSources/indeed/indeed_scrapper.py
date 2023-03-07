@@ -108,7 +108,7 @@ class IndeedScrapper:
 
         offer_details = {
             'job_description': job_description,
-            'saved_timestamp': str(datetime.today().isoformat(sep='T', timespec='auto')),
+            'inserted_at': str(datetime.today().isoformat(sep='T', timespec='auto')),
         }
 
         driver.back()
