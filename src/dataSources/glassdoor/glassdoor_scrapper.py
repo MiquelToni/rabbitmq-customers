@@ -1,4 +1,3 @@
-import time
 from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
