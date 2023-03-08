@@ -81,7 +81,7 @@ class IndeedScrapper:
         for offer in offers:
             details = {}
             # details = self.get_offer_details(base_url, offer) # uncomment when the description becomes relevant
-            details['company'] = offer['company'] if 'company' in offer else ''
+            details['company_name'] = offer['company'] if 'company' in offer else ''
             details['job_location_city'] = offer['jobLocationCity'] if 'jobLocationCity' in offer else (
                 offer['formattedLocation'] if 'formattedLocation' in offer else '')
             details['job_location_state'] = offer['jobLocationState'] if 'jobLocationState' in offer else ''

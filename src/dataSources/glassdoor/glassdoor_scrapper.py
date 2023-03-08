@@ -17,7 +17,6 @@ class GlassDoorScrapper(Scrapper):
     def run(self):
         url = f"""https://www.glassdoor.com/Job/rabbitmq-jobs-SRCH_KO0,8_IP.htm?includeNoSalaryJobs=true"""
         self.driver.get(url)
-        self.driver.implicitly_wait(1)
         self.close_modal()
         self.accept_cookies()
 
@@ -27,7 +26,6 @@ class GlassDoorScrapper(Scrapper):
         print("found", current_count, "/", total_jobs_count, "offers")
 
         while self.goto_next_page():
-            self.driver.implicitly_wait(1)
             self.close_modal()
             self.accept_cookies()
             current_count += self.insert_job_offers()
@@ -84,6 +82,7 @@ class GlassDoorScrapper(Scrapper):
 
     def close_modal(self):
         try:
+            self.driver.implicitly_wait(2)
             self.driver.find_element(
                 By.CLASS_NAME, 'modal_closeIcon').click()
         except:
