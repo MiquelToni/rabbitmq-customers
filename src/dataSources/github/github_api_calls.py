@@ -10,7 +10,7 @@ from repository.githubRepo import GithubRepo
 
 headers = {"Authorization": f"token {API_TOKEN_GITHUB}"}
 
-ORDER_FIELD = ['CREATED_AT', 'UPDATED_AT', 'PUSHED_AT', 'NAME', 'STARGAZERS']
+ORDER_FIELD = ['UPDATED_AT', 'PUSHED_AT', 'NAME', 'STARGAZERS', 'CREATED_AT']
 ORDER_DIRECTION = ['ASC', 'DESC']
 PATH = f'data/github_result_{str(datetime.now())}.json'
 
@@ -18,6 +18,9 @@ PATH = f'data/github_result_{str(datetime.now())}.json'
 class GithubForRabbitMQ():
     def __init__(self, db):
         self.db = db
+        self.logins = set()
+        self.companies = set()
+        self.empty_users = set()
 
     def run_query(self, query): # A simple function to use requests.post to make the API call. Note the json= section.
         request = requests.post('https://api.github.com/graphql', json={'query': query}, headers=headers)
@@ -50,43 +53,52 @@ class GithubForRabbitMQ():
         else:
             self.write_json_file(path, {login: company})
 
-    def run(self):
-        logins = set()
-        companies = set()
-        empty_users = set()
+    def look_into_results(self, edges):
+        for edge in tqdm(edges):
+            login = edge["node"]["owner"]["login"]
+            if login in self.logins:
+                continue
+            self.logins.add(login)
+            comp_query = company_query(login)
+            company_result = self.run_query(comp_query)
+            try:
+                company = company_result["data"]["user"]["company"]
+                if company and company not in self.companies:
+                    # self.save_info(PATH, f'company_{len(self.companies)}', company)
+                    self.db.insert_company({'company_name': company,
+                                            'source': 'github',
+                                            'saved_timestamp': str(datetime.now()),
+                                            'company_or_login': 'company'})
+                self.companies.add(company)
+            except TypeError:
+                if login in self.empty_users:
+                    continue
+                self.empty_users.add(login)
+                # self.save_info(PATH, f'no_user{len(self.empty_users)}', login)
+                self.db.insert_company({'company_name': login,
+                                        'source': 'github',
+                                        'saved_timestamp': str(datetime.now()),
+                                        'company_or_login': 'login'})
+                # print(f"No user with that login")
 
+    def run(self):
         for order_field in ORDER_FIELD:
             for order_direction in ORDER_DIRECTION:
-                result = self.run_query(repo_query(order_field=order_field, order_direction=order_direction)) # Execute the query
-                print(f'Order field: {order_field}, order direction: {order_direction}')
-                for edge in tqdm(result["data"]["topic"]["repositories"]["edges"]):
-                    login = edge["node"]["owner"]["login"]
-                    if login in logins:
-                        continue
-                    logins.add(login)
-                    comp_query = company_query(login)
-                    company_result = self.run_query(comp_query)
-                    try:
-                        company = company_result["data"]["user"]["company"]
-                        if company and company not in companies:
-                            self.save_info(PATH, f'company_{len(companies)}', company)
-                            self.db.insert_company({'company_name': company,
-                                                    'source': 'github',
-                                                    'saved_timestamp': str(datetime.now()),
-                                                    'company_or_login': 'company'})
-                        companies.add(company)
-                    except TypeError:
-                        if login in empty_users:
-                            continue
-                        empty_users.add(login)
-                        self.save_info(PATH, f'no_user{len(empty_users)}', login)
-                        self.db.insert_company({'company_name': login,
-                                                'source': 'github',
-                                                'saved_timestamp': str(datetime.now()),
-                                                'company_or_login': 'login'})
-                        # print(f"No user with that login")
+                next_cursor = None
+                page_cursor = ''
+                page = 1
+                while page <= 15:
+                    if next_cursor:
+                        page_cursor = f'after: "{next_cursor}"'
+                    result = self.run_query(repo_query(order_field=order_field, order_direction=order_direction, page_cursor=page_cursor)) # Execute the query
+                    print(f'Order field: {order_field}, order direction: {order_direction}, page: {page}')
+                    self.look_into_results(result["data"]["topic"]["repositories"]["edges"])
 
-        # print(f"Companies: {companies}")
+                    if result['data']['topic']['repositories']['pageInfo']['hasNextPage']:
+                        next_cursor = result['data']['topic']['repositories']['pageInfo']['endCursor']
+                        page += 1
+                    else:
+                        break
 
 
 if __name__ == '__main__':
@@ -94,6 +106,3 @@ if __name__ == '__main__':
 
     helper = GithubForRabbitMQ(db=repo)
     helper.run()
-
-# TODO: Haven't figured out how to look into next pages of results. We are only getting the first 100 
-#       for each query.

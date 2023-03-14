@@ -1,12 +1,13 @@
 
-def repo_query(order_field='STARGAZERS', order_direction='ASC'):
+def repo_query(order_field='STARGAZERS', order_direction='ASC', page_cursor=''):
     repo_query = """
     {
         topic(name: "rabbitmq") {
             repositories(
-                affiliations: COLLABORATOR
-                first: 100
-                orderBy: {field: %s, direction: %s}
+            affiliations: COLLABORATOR
+            first: 100
+            orderBy: {field: %s, direction: %s}
+            %s
             ) {
                 edges {
                     node {
@@ -20,10 +21,14 @@ def repo_query(order_field='STARGAZERS', order_direction='ASC'):
                         }
                     }
                 }
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
             }
         }
     }
-    """ % (order_field, order_direction)
+    """ % (order_field, order_direction, page_cursor)
     return repo_query
 
 def company_query(username):
