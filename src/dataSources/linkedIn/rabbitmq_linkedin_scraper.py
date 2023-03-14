@@ -11,7 +11,7 @@ class ScrapeLinkedInJobOffers:
     def __init__(self, logger, location, database):
         options = webdriver.ChromeOptions()
         options.add_argument("--headless")
-        self.wd = webdriver.Chrome(executable_path='chromedriver/chromedriver.exe', chrome_options=options)
+        self.wd = webdriver.Chrome(executable_path='chromedriver/chromedriver', chrome_options=options)
         self.job_info = defaultdict(list)
         self.logging = logger
         self.job_number = 0
