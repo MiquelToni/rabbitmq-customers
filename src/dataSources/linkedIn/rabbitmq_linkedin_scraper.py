@@ -11,7 +11,7 @@ class ScrapeLinkedInJobOffers:
     def __init__(self, logger, location, database):
         options = webdriver.ChromeOptions()
         options.add_argument("--headless")
-        self.wd = webdriver.Chrome(executable_path='chromedriver/chromedriver', chrome_options=options)
+        self.wd = webdriver.Chrome()
         self.job_info = defaultdict(list)
         self.logging = logger
         self.job_number = 0
@@ -23,32 +23,46 @@ class ScrapeLinkedInJobOffers:
         self.wd.get(url)
 
     def read_page(self):
-        try:
-            no_of_jobs = int(self.wd.find_element(By.CLASS_NAME, 'results-context-header__job-count').text)
-        except Exception as e:
-            self.logging.info(f"No jobs for RabbitMQ found in {self.location}")
-            return []
-
+        no_of_jobs = self.get_number_of_jobs()    
         self.logging.info(f"Found {no_of_jobs} in {self.location}.")
         print(f"Loading {int(no_of_jobs/25)} more pages.")
-
         pages = tqdm(total=int(no_of_jobs/25)+1)
-        i = 2
-        while i <= int(no_of_jobs/25)+1: 
-            self.wd.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            i = i + 1
+        current_page = 1
+        while current_page <= int(no_of_jobs/25)+1:
+            # page => 25 results, 7 * 25 = 175 ( after that we need to click )
+            # last time we scroll down is in page 6, the 7th time we'll have the button
+            if current_page <= 6: 
+                self.wd.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            else:
+                try:
+                   self.wd.find_element(by=By.XPATH, value='/html/body/div/div/main/section/button').click()
+                except Exception as e:
+                    self.logging.info(e)
+                    pass
+            current_page = current_page + 1
+            self.logging.info(f"Saving page {current_page}.")
             pages.update(1)
-            try:
-                self.wd.find_element_by_xpath('/html/body/main/div/section/button').click()
-                time.sleep(5)
-            except:
-                pass
-                time.sleep(5)
-        pages.close()
+            time.sleep(5)
         job_lists = self.wd.find_element(By.CLASS_NAME, 'jobs-search__results-list')
-        jobs = job_lists.find_elements(By.TAG_NAME, 'li') # return a list
+        jobs = job_lists.find_elements(By.TAG_NAME, 'li') # return a list        
+        pages.close()
         self.logging.info(f"Saving {len(jobs)} for {self.location}.")
         return jobs
+
+    def get_number_of_jobs(self):
+        try:
+            txt = self.wd.find_element(By.CLASS_NAME, 'results-context-header__job-count').text
+            no_of_jobs = 0
+            if txt[-1] == '+':
+                no_of_jobs = int(txt[:-1].replace(',',''))
+            else:
+                no_of_jobs = int(txt)
+            return no_of_jobs
+            
+        except Exception as e:
+            self.logging.info(f"No jobs for RabbitMQ found in {self.location}")
+            self.logging.info(e)
+            return 0
 
     def read_and_save_jobs(self, jobs):
         # extract job title,company name, location, date, job details link
@@ -100,5 +114,3 @@ class ScrapeLinkedInJobOffers:
         jobs = self.read_page()
         self.read_and_save_jobs(jobs)
         self.update_json('./data/linkedIn/linkedin_job_offers_info.json')
-
-#TODO: We get the first 175 fom scrolling, then we need to press a button and look into another source for each next 25.
