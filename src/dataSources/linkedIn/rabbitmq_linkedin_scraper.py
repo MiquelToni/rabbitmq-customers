@@ -28,6 +28,7 @@ class ScrapeLinkedInJobOffers:
         print(f"Loading {int(no_of_jobs/25)} more pages.")
         pages = tqdm(total=int(no_of_jobs/25)+1)
         current_page = 1
+        jobs = []
         while current_page <= int(no_of_jobs/25)+1:
             # page => 25 results, 7 * 25 = 175 ( after that we need to click )
             # last time we scroll down is in page 6, the 7th time we'll have the button
@@ -43,9 +44,13 @@ class ScrapeLinkedInJobOffers:
             self.logging.info(f"Saving page {current_page}.")
             pages.update(1)
             time.sleep(5)
-        job_lists = self.wd.find_element(By.CLASS_NAME, 'jobs-search__results-list')
-        jobs = job_lists.find_elements(By.TAG_NAME, 'li') # return a list        
         pages.close()
+        try:
+            job_lists = self.wd.find_element(By.CLASS_NAME, 'jobs-search__results-list')
+            jobs = job_lists.find_elements(By.TAG_NAME, 'li') # return a list        
+        except Exception as e:
+                self.logging.info(e)
+                pass
         self.logging.info(f"Saving {len(jobs)} for {self.location}.")
         return jobs
 

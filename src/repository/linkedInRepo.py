@@ -3,7 +3,7 @@ from datetime import datetime
 from dotenv import dotenv_values
 from repository.mongodbBaseRepo import MongodbBaseRepo
 
-config = dotenv_values("../.env")
+config = dotenv_values(".env")
 
 
 class LinkedInRepo(MongodbBaseRepo):

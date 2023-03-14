@@ -2,7 +2,7 @@ import time, datetime
 import os, sys
 import logging
 
-from dataSources.linkedIn.countries import country_list
+from dataSources.linkedIn.countries import region_list
 from dataSources.linkedIn.rabbitmq_linkedin_scraper import ScrapeLinkedInJobOffers
 
 from repository.linkedInRepo import LinkedInRepo
@@ -24,10 +24,10 @@ if __name__ == '__main__':
     repo = LinkedInRepo()
 
     start = time.perf_counter()
-
-    for location in country_list:
+    
+    for location in region_list:
         scraper = ScrapeLinkedInJobOffers(logger=logging, location=location, database=repo)
         scraper.run()
     
     elapsed_seconds = time.perf_counter() - start
-    logging.info(f"For {len(country_list)} countries, scraping time is {elapsed_seconds/60} minutes.")
+    logging.info(f"For {len(region_list)} regions, scraping time is {elapsed_seconds/60} minutes.")
