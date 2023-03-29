@@ -11,6 +11,7 @@ class ScrapeLinkedInJobOffers:
     def __init__(self, logger, location, database):
         options = webdriver.ChromeOptions()
         options.add_argument("--headless")
+        options.add_argument("window-size=1200x600")
         self.wd = webdriver.Chrome()
         self.job_info = defaultdict(list)
         self.logging = logger
@@ -24,12 +25,13 @@ class ScrapeLinkedInJobOffers:
 
     def read_page(self):
         no_of_jobs = self.get_number_of_jobs()    
-        self.logging.info(f"Found {no_of_jobs} in {self.location}.")
-        print(f"Loading {int(no_of_jobs/25)} more pages.")
-        pages = tqdm(total=int(no_of_jobs/25)+1)
-        current_page = 1
+        self.logging.info(f"Found {no_of_jobs} in {self.location}.")     
+        if no_of_jobs == 0:
+            return None
+        pages = tqdm(total=int(no_of_jobs/25)+1) if int(no_of_jobs/25)+1 < 40 else tqdm(total=40)
+        current_page = 0
         jobs = []
-        while current_page <= int(no_of_jobs/25)+1:
+        while current_page <= int(no_of_jobs/25) and current_page < 40:
             # page => 25 results, 7 * 25 = 175 ( after that we need to click )
             # last time we scroll down is in page 6, the 7th time we'll have the button
             if current_page <= 6: 
@@ -47,12 +49,11 @@ class ScrapeLinkedInJobOffers:
         pages.close()
         try:
             job_lists = self.wd.find_element(By.CLASS_NAME, 'jobs-search__results-list')
-            jobs = job_lists.find_elements(By.TAG_NAME, 'li') # return a list        
+            jobs = job_lists.find_elements(By.TAG_NAME, 'li')
+            return  jobs    
         except Exception as e:
-                self.logging.info(e)
-                pass
-        self.logging.info(f"Saving {len(jobs)} for {self.location}.")
-        return jobs
+            self.logging.info(e)
+            pass
 
     def get_number_of_jobs(self):
         try:
@@ -71,7 +72,8 @@ class ScrapeLinkedInJobOffers:
 
     def read_and_save_jobs(self, jobs):
         # extract job title,company name, location, date, job details link
-        for job in tqdm(jobs):
+        self.logging.info(f"Saving {len(jobs)} for {self.location}.")
+        for job in jobs:
             self.job_number += 1
             job_data = {}
             job_data['job_title'] = job.find_element(By.CLASS_NAME, 'base-search-card__title').get_attribute('innerText')
@@ -85,6 +87,7 @@ class ScrapeLinkedInJobOffers:
             job_data['job_link'] = url
             job_data['saved_timestamp'] = str(datetime.datetime.now())
             # job_data['job_description'] = self.get_detailed_job_description(url)
+            self.logging.info(f"Saving {job_data['job_title']} - {job_data['company_name']}.")
 
             # save to db
             self.db.insert_job_offer(job_data)
@@ -117,5 +120,6 @@ class ScrapeLinkedInJobOffers:
     def run(self):
         self.get_web_driver_for_location()
         jobs = self.read_page()
-        self.read_and_save_jobs(jobs)
-        self.update_json('./data/linkedIn/linkedin_job_offers_info.json')
+        if jobs != None:
+            self.read_and_save_jobs(jobs)
+            self.update_json('./data/linkedIn/linkedin_job_offers_info.json')
