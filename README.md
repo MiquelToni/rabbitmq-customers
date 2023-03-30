@@ -31,3 +31,24 @@ docker run -d --name rabbitmq_customers \
 - Some attributes are None or not found in some offers
 - Improve: Look for a render-less / silent version of the scrapper
 - Add proper logger
+
+
+## Mongo Compass
+
+### Get distinct companies pipeline
+``` 
+[
+  {
+    $unwind: {
+      path: '$company_name',
+      preserveNullAndEmptyArrays: true
+    }
+  },
+  {
+    $group: {
+      _id: null,
+      uniqueCompanies: { $addToSet: '$company_name' }
+    }
+  }
+]
+```

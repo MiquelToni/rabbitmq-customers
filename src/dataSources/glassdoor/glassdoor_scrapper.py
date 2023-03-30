@@ -1,11 +1,10 @@
 from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from dataSources.scrapper import Scrapper
 from repository.glassdoor_repo import GlassdoorRepo
 
 
-class GlassDoorScrapper(Scrapper):
+class GlassDoorScrapper():
 
     def __init__(self, repo: GlassdoorRepo):
         self.repo = repo
@@ -20,9 +19,11 @@ class GlassDoorScrapper(Scrapper):
         self.accept_cookies()
 
         app_cache = self.get_app_cache()
-        total_jobs_count = app_cache['jlData']['totalJobsCount']
-        current_count = self.insert_job_offers()
-        print("found", current_count, "/", total_jobs_count, "offers")
+
+        if app_cache != None:
+            total_jobs_count = app_cache['jlData']['totalJobsCount']
+            current_count = self.insert_job_offers()
+            print("found", current_count, "/", total_jobs_count, "offers")
 
         while self.goto_next_page():
             self.close_modal()
@@ -52,6 +53,7 @@ class GlassDoorScrapper(Scrapper):
             if company_item.get_attribute('innerText') != ''
         ]
         for offer in offers:
+            offer['source'] = 'GLASSDOOR'
             self.repo.insert_job_offer(offer)
 
         return len(offers)

@@ -4,3 +4,5 @@ __pycache__
 
 data/
 .vscode/
+nodejs/
+.DS_Store
