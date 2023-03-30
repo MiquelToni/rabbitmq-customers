@@ -254,9 +254,3 @@ country_list = [
     'Zambia',
     'Zimbabwe',
 ]
-region_list = [
-    'EMEA',
-    'APAC',
-    'NAMER',
-    'Latin America'
-]

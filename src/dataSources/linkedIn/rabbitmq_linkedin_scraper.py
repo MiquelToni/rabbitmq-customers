@@ -76,6 +76,7 @@ class ScrapeLinkedInJobOffers:
         for job in jobs:
             self.job_number += 1
             job_data = {}
+            job_data['source'] = 'LINKEDIN'
             job_data['job_title'] = job.find_element(By.CLASS_NAME, 'base-search-card__title').get_attribute('innerText')
             job_data['company_name'] = job.find_element(By.CLASS_NAME, 'base-search-card__subtitle').get_attribute('innerText')
             job_data['job_location'] = job.find_element(By.CLASS_NAME, 'job-search-card__location').get_attribute('innerText')
@@ -105,8 +106,7 @@ class ScrapeLinkedInJobOffers:
                 data = json.load(jsonFile)
             return data
         except FileNotFoundError:
-            return {}
-        
+            return {}     
 
     def write_json_file(self, path, data):
         with open(path, 'w') as f:
