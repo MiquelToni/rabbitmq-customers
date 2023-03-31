@@ -7,8 +7,8 @@ from repository.unified_repo import UnifiedRepo
 def main():
     unified_repo = UnifiedRepo()
 
-   # indeed_scrapper = IndeedScrapper(unified_repo)
-   # indeed_scrapper.run("rabbitmq")
+    indeed_scrapper = IndeedScrapper(unified_repo)
+    indeed_scrapper.run("rabbitmq")
 
     glassdoor_scrapper = GlassDoorScrapper(unified_repo)
     glassdoor_scrapper.run()

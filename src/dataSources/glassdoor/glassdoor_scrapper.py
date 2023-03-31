@@ -9,7 +9,7 @@ class GlassDoorScrapper():
     def __init__(self, repo: GlassdoorRepo):
         self.repo = repo
         options = webdriver.ChromeOptions()
-        options.add_argument("--headless")
+        # options.add_argument("--headless") // headless hits a anti-bot wall
         self.driver = webdriver.Chrome(options=options)
 
     def run(self):
@@ -22,6 +22,10 @@ class GlassDoorScrapper():
 
         if app_cache != None:
             total_jobs_count = app_cache['jlData']['totalJobsCount']
+            current_count = self.insert_job_offers()
+            print("found", current_count, "/", total_jobs_count, "offers")
+        else:
+            total_jobs_count = 'unknown'
             current_count = self.insert_job_offers()
             print("found", current_count, "/", total_jobs_count, "offers")
 
